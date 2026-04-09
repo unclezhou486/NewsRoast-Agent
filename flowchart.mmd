@@ -1,0 +1,28 @@
+graph TD
+    A[用户输入新闻URL] --> B[新闻分析模块]
+    B --> C[Reddit评论检索模块]
+    B --> D[评论生成模块]
+    C --> D
+    D --> E[图片生成模块]
+    E --> F[输出神评论和配图]
+    
+    subgraph 核心模块
+    B[新闻分析模块]
+    C[Reddit评论检索模块]
+    D[评论生成模块]
+    E[图片生成模块]
+    end
+    
+    subgraph 技术栈
+    B1[OpenAI GPT-4o] --> B
+    C1[PRAW Reddit API] --> C
+    D1[OpenAI GPT-4o] --> D
+    E1[OpenAI DALL·E 3] --> E
+    end
+    
+    subgraph 数据流程
+    B -- 分析结果 --> D
+    C -- 参考评论 --> D
+    D -- 生成评论 --> E
+    E -- 配图 --> F
+    end
