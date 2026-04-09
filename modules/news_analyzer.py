@@ -12,10 +12,20 @@ class NewsAnalyzer:
     
     def image_to_base64(self, url):
         try:
-            res = requests.get(url,timeout=5)
-            return base64.b64encode(res.content).decode("utf-8")
+            res = requests.get(url, timeout=5)
+            content_type = res.headers.get("Content-Type", "")
+            
+            if "image" not in content_type:
+                return None, None
+            
+            img_base64 = base64.b64encode(res.content).decode("utf-8")
+            
+            # 提取格式，例如 image/png → png
+            fmt = content_type.split("/")[-1]
+            
+            return img_base64, fmt
         except:
-            return None
+            return None, None
     def fetch_news_data(self, url):
         """同时获取新闻文字和图片链接"""
         try:
@@ -55,11 +65,13 @@ class NewsAnalyzer:
         # 如果抓到了图片，就把图片传给模型
         if images:
             for img_url in images:
-                img_base64 = self.image_to_base64(img_url)
-                content_list.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}
-                })
+                img_base64, fmt = self.image_to_base64(img_url)
+
+                if img_base64:
+                    content_list.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/{fmt};base64,{img_base64}"}
+                    })
             print(f"  [视觉触发] 已识别到 {len(images)} 张新闻配图，正在进行联合分析...")
 
         try:
