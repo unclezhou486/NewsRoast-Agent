@@ -69,3 +69,6 @@ generated_images/
 # 🔄 合并脚本输出
 # =========================
 all_code.md
+need.md
+need.png
+.python-version
