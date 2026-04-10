@@ -33,7 +33,7 @@ class ImageGenerator:
                 f"{self.base_url}/images/generations",
                 headers={**self.headers, "X-ModelScope-Async-Mode": "true"},
                 json={
-                    "model": "Qwen/Qwen-Image-2512",
+                    "model": IMAGE_GEN_MODEL,
                     "prompt": prompt,
                     # "n": 1  # 可选：生成多张图
                 }
