@@ -118,7 +118,7 @@ pip install -r requirements.txt
 在项目根目录创建 `.env` 文件，填入你的 API Key：
 
 ```env
-# 阿里云百炼 API KEY (提供全部 Qwen 模型支持)
+# 魔塔社区 API KEY (提供全部 Qwen 模型支持)
 MODELSCOPE_API_KEY=your_dashscope_api_key_here
 
 # Tavily API KEY (用于突破 Reddit 搜索限制)
