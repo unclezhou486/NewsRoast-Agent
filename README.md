@@ -36,7 +36,7 @@ graph TD
     end
 
     subgraph 3. 风格化创作层
-    D[评论生成模块 CommentGenerator] -- Qwen3.5-27B --> D1[5类风格神评论]
+    D[评论生成模块 CommentGenerator] -- MiniMax-M2.5 --> D1[5类风格神评论]
     D1 --> E
     end
 
