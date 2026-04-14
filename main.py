@@ -11,17 +11,25 @@ from rich.panel import Panel
 from rich.prompt import Prompt  # 引入输入组件
 
 def main():
+    import sys
+
     console = Console()
-    
+
     console.print(Panel("[bold blue]🚀 AI 新闻神评论 Agent[/bold blue]\n[dim]输入一个新闻链接，AI 自动为你生成梗图与神评论[/dim]", border_style="blue"))
 
     # 1. 交互式输入网址
     default_url = "https://www.ainvest.com/news/apple-100-billion-investment-sparks-market-rally-offers-glimpse-trump-tariff-carveout-framework-2508/"
-    
-    console.print(f"\n[bold cyan]请输入新闻 URL[/bold cyan] [dim](直接回车将使用默认苹果新闻):[/dim]")
-    user_input = Prompt.ask("> ", default=default_url)
-    
-    news_url = user_input.strip()
+
+    # 检查是否在交互式环境（避免脚本运行时EOFError）
+    if sys.stdin.isatty():
+        console.print(f"\n[bold cyan]请输入新闻 URL[/bold cyan] [dim](直接回车将使用默认苹果新闻):[/dim]")
+        user_input = Prompt.ask("> ", default=default_url)
+        news_url = user_input.strip()
+    else:
+        # 非交互式环境，直接使用默认URL
+        news_url = default_url
+        console.print(f"\n[dim]非交互式模式，使用默认新闻URL[/dim]")
+
     console.print(f"✅ [green]正在处理:[/green] [link={news_url}]{news_url}[/link]\n")
 
     # --- 后面的逻辑保持不变 ---

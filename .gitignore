@@ -71,6 +71,12 @@ generated_images/
 all_code.md
 need.md
 need.png
-.python-version
 all_code_1.md
 难点.md
+
+# =========================
+# 🧠 Claude Code 配置与缓存 (保留skills文件)
+# =========================
+.claude/*
+!.claude/skills/
+!.claude/skills/*
