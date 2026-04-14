@@ -1,7 +1,25 @@
+"""
+Reddit社区评论检索模块
+实现: .claude/skills/2_reddit_navigator.md 中的Reddit生态导航专家要求
+
+核心功能:
+1. 三级搜索策略: 精确匹配 → 概念扩展 → 文化语境搜索
+2. 评论质量评估体系: 优先抓取高赞、高回复、有奖项标识、OP回复的评论
+3. 质量过滤: 过滤掉"简单同意"、"纯情绪发泄"、"事实错误"的低价值评论
+
+技术方案:
+- 主要检索: Tavily API + `site:reddit.com` 约束，绕过Reddit API限制
+- 降级方案: HackerNews Algolia API (当Reddit搜索无结果时)
+- 搜索优化: 清洗特殊字符，截断至5-8个核心词，提高搜索结果相关性
+
+输出规范: 结构化JSON包含评论文本、赞数、质量分数、风格分类、关键短语、情绪基调
+"""
+
 import requests
 import re
 import time
-from config import TAVILY_API_KEY
+from config import TAVILY_API_KEY, SEARCHER_API_KEY, SEARCHER_BASE_URL, SEARCHER_MODEL
+from openai import OpenAI
 
 class RedditFetcher:
     def __init__(self):
@@ -10,6 +28,18 @@ class RedditFetcher:
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
+
+        # 初始化搜索优化客户端（如果API密钥可用）
+        self.searcher_client = None
+        if SEARCHER_API_KEY and SEARCHER_API_KEY.strip():
+            try:
+                self.searcher_client = OpenAI(
+                    api_key=SEARCHER_API_KEY,
+                    base_url=SEARCHER_BASE_URL
+                )
+                print(f"  [搜索优化] 已启用AI搜索查询优化，使用模型: {SEARCHER_MODEL}")
+            except Exception as e:
+                print(f"  [搜索优化] 初始化失败: {e}，将使用基础清洗方法")
 
     def _clean_query(self, query):
         """核心改进：清洗并精简搜索词"""
@@ -22,12 +52,67 @@ class RedditFetcher:
             query = " ".join(words[:6])
         return query.strip()
 
+    def _optimize_query_with_ai(self, raw_query, news_context=""):
+        """使用AI模型优化搜索查询，返回更适合Reddit搜索的查询词"""
+        if not self.searcher_client or not raw_query or len(raw_query) < 3:
+            return self._clean_query(raw_query)
+
+        try:
+            prompt = f"""
+            请将以下新闻搜索查询优化为适合在Reddit上搜索相关讨论的英文关键词：
+
+            原始查询: {raw_query}
+
+            优化要求：
+            1. 输出3-5个最相关的英文关键词
+            2. 关键词要具体，避免过于宽泛
+            3. 考虑Reddit社区常用的讨论角度
+            4. 优先使用名词和核心概念
+            5. 用空格分隔关键词，不要用逗号或引号
+
+            示例：
+            输入: "Apple gets tariff exemption from Trump"
+            输出: "Apple Trump tariff exemption"
+
+            输出格式：直接输出优化后的关键词，不要额外解释。
+            """
+
+            response = self.searcher_client.chat.completions.create(
+                model=SEARCHER_MODEL,
+                messages=[
+                    {"role": "system", "content": "你是搜索查询优化专家，擅长将新闻话题转化为适合社交媒体搜索的关键词。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=50
+            )
+
+            optimized_query = response.choices[0].message.content.strip()
+
+            # 清理响应，确保只保留关键词
+            optimized_query = re.sub(r'[,\."]', '', optimized_query)
+            optimized_query = ' '.join(optimized_query.split()[:6])  # 限制长度
+
+            if optimized_query and len(optimized_query) >= 3:
+                print(f"  [AI优化] 原始: '{raw_query[:30]}...' → 优化: '{optimized_query}'")
+                return optimized_query
+            else:
+                return self._clean_query(raw_query)
+
+        except Exception as e:
+            print(f"  [AI优化] 失败: {e}，使用基础清洗")
+            return self._clean_query(raw_query)
+
     def get_reference_comments(self, analysis):
         # 1. 提取原始 query
         raw_query = self._extract_query_from_analysis(analysis)
-        # 2. 清洗 query（变成类似 "Apple Trump tariff exemption"）
-        query = self._clean_query(raw_query)
-        
+
+        # 2. 优化查询：优先使用AI优化，失败时使用基础清洗
+        if self.searcher_client:
+            query = self._optimize_query_with_ai(raw_query, analysis)
+        else:
+            query = self._clean_query(raw_query)
+
         print(f"  [联动检索] 原始词: {raw_query[:30]}...")
         print(f"  [联动检索] 优化后的搜索词: {query}")
 

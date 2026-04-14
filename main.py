@@ -9,11 +9,48 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt  # 引入输入组件
+import os
+
+def validate_skill_files():
+    """验证技能文件是否存在，确保四阶段技能链式调用的完整性"""
+    skill_files = {
+        "1_perception_expert.md": "多模态感知与槽点挖掘阶段",
+        "2_reddit_navigator.md": "Reddit生态导航与参考材料检索阶段",
+        "3_god_comment_generator.md": "神评论生成与风格化创作阶段",
+        "4_visual_prompt_designer.md": "视觉叙事与梗图设计阶段"
+    }
+
+    missing_files = []
+    for filename, stage_name in skill_files.items():
+        filepath = os.path.join(".claude", "skills", filename)
+        if not os.path.exists(filepath):
+            missing_files.append((filename, stage_name))
+
+    return missing_files
 
 def main():
     import sys
 
     console = Console()
+
+    # 验证技能文件完整性
+    missing_files = validate_skill_files()
+    if missing_files:
+        console.print(Panel(
+            "[bold red]⚠️  技能文件完整性检查失败[/bold red]\n\n"
+            "[yellow]以下技能文件缺失，可能影响系统执行质量：[/yellow]\n\n" +
+            "\n".join([f"  • {filename} ({stage_name})" for filename, stage_name in missing_files]) +
+            "\n\n[dim]请确保.claude/skills/目录下的四个技能文件完整存在。[/dim]",
+            border_style="red"
+        ))
+        # 询问是否继续
+        if sys.stdin.isatty():
+            response = Prompt.ask("是否继续执行？", choices=["y", "n"], default="y")
+            if response.lower() != "y":
+                console.print("[dim]程序已退出。[/dim]")
+                return
+        else:
+            console.print("[yellow]非交互式模式，继续执行但质量可能受影响。[/yellow]")
 
     console.print(Panel("[bold blue]🚀 AI 新闻神评论 Agent[/bold blue]\n[dim]输入一个新闻链接，AI 自动为你生成梗图与神评论[/dim]", border_style="blue"))
 
