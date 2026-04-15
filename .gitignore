@@ -7,6 +7,8 @@ __pycache__/
 *.pyd
 *.so
 
+难点.md
+
 # 虚拟环境
 venv/
 .env/
