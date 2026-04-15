@@ -214,7 +214,7 @@ graph TD
 
 **阶段四：AI 梗图（DeepSeek-V3.2 生成 Prompt → Qwen-Image-2512 异步生成）**
 
-![NewsRoast梗图示例](https://muse-ai.oss-cn-hangzhou.aliyuncs.com/img/950be453-1ac3-4c67-93a4-a106b01aa3b8.png)
+[NewsRoast梗图示例](https://muse-ai.oss-cn-hangzhou.aliyuncs.com/img/950be453-1ac3-4c67-93a4-a106b01aa3b8.png)
 
 > 完整运行日志与输出见 [output_demo.md](output_demo.md)
 
