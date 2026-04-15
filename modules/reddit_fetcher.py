@@ -66,7 +66,7 @@ class RedditFetcher:
         # 加载技能文件
         self.reddit_navigator_skill = None
         try:
-            self.reddit_navigator_skill = get_skill_loader().load_skill("2_reddit_navigator")
+            self.reddit_navigator_skill = get_skill_loader().load_skill("reddit_navigator")
         except Exception as e:
             logger.warning(f"加载技能文件失败: {e}，将使用默认检索策略")
 

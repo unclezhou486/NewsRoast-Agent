@@ -57,7 +57,7 @@ class NewsAnalyzer:
         # 加载技能文件
         self.perception_skill = None
         try:
-            self.perception_skill = get_skill_loader().load_skill("1_perception_expert")
+            self.perception_skill = get_skill_loader().load_skill("perception_expert")
         except Exception as e:
             logger.warning(f"加载技能文件失败: {e}，将使用默认分析框架")
 

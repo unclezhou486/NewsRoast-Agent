@@ -9,13 +9,13 @@
 4. emoji 标准化：解析时剥离 ## 标题里的 emoji 和空格，生成"干净 key"
    原始 key 同时保留，两者均可查找
 
-目录结构
+目录结构（Claude Code skill 子目录格式）
 --------
 .claude/skills/
-  1_perception_expert.md
-  2_reddit_navigator.md
-  3_god_comment_generator.md
-  4_visual_prompt_designer.md
+  perception_expert/SKILL.md
+  reddit_navigator/SKILL.md
+  god_comment_generator/SKILL.md
+  visual_prompt_designer/SKILL.md
 """
 
 from __future__ import annotations
@@ -195,8 +195,10 @@ class SkillLoader:
         """
         加载技能文件，返回 SkillData 对象（带缓存）。
 
+        从 Claude Code skill 子目录格式加载：{skills_dir}/{skill_name}/SKILL.md
+
         Args:
-            skill_name: 技能文件名（不含 .md 后缀），例如 "1_perception_expert"
+            skill_name: 技能目录名，例如 "perception_expert"
 
         Returns:
             SkillData 实例
@@ -207,7 +209,11 @@ class SkillLoader:
         if skill_name in self.skills_cache:
             return self.skills_cache[skill_name]
 
-        skill_file = self.skills_dir / f"{skill_name}.md"
+        # 路径遍历防护
+        skill_file = (self.skills_dir / skill_name / "SKILL.md").resolve()
+        if not str(skill_file).startswith(str(self.skills_dir.resolve())):
+            raise FileNotFoundError(f"技能文件不存在: {skill_file}")
+
         if not skill_file.exists():
             logger.error(f"技能文件不存在: {skill_file}")
             raise FileNotFoundError(f"技能文件不存在: {skill_file}")
@@ -219,21 +225,24 @@ class SkillLoader:
             logger.info(f"成功加载技能: {skill_name} ({len(skill_data)} 个章节)")
             return skill_data
 
+        except FileNotFoundError:
+            raise
         except Exception as e:
             logger.exception(f"加载技能文件失败: {skill_file}, 错误: {e}")
             raise
 
     def get_all_skills(self) -> Dict[str, SkillData]:
-        """加载并返回技能目录下所有 .md 文件。"""
+        """加载并返回技能目录下所有子目录中的 SKILL.md。"""
         skills: Dict[str, SkillData] = {}
         if not self.skills_dir.exists():
             return skills
-        for skill_file in sorted(self.skills_dir.glob("*.md")):
-            name = skill_file.stem
-            try:
-                skills[name] = self.load_skill(name)
-            except Exception as e:
-                logger.error(f"加载技能失败: {name}, 错误: {e}")
+        for skill_dir in sorted(self.skills_dir.iterdir()):
+            if skill_dir.is_dir() and (skill_dir / "SKILL.md").exists():
+                name = skill_dir.name
+                try:
+                    skills[name] = self.load_skill(name)
+                except Exception as e:
+                    logger.error(f"加载技能失败: {name}, 错误: {e}")
         return skills
 
     def get_skill_section(self, skill_name: str, section_query: str) -> Optional[str]:

@@ -92,7 +92,7 @@ class CommentGenerator:
         # 加载技能文件
         self.god_comment_skill = None
         try:
-            self.god_comment_skill = get_skill_loader().load_skill("3_god_comment_generator")
+            self.god_comment_skill = get_skill_loader().load_skill("god_comment_generator")
         except Exception as e:
             logger.warning(f"加载技能文件失败: {e}，将使用默认生成框架")
 

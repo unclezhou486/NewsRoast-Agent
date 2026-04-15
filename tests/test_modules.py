@@ -26,7 +26,7 @@ class TestNewsAnalyzer:
 
         assert analyzer is not None
         mock_get_loader.assert_called_once()
-        mock_loader.load_skill.assert_called_once_with("1_perception_expert")
+        mock_loader.load_skill.assert_called_once_with("perception_expert")
 
     @patch('modules.news_analyzer.OpenAI')
     @patch('modules.news_analyzer.requests')
@@ -81,7 +81,7 @@ class TestRedditFetcher:
 
         assert fetcher is not None
         mock_get_loader.assert_called_once()
-        mock_loader.load_skill.assert_called_once_with("2_reddit_navigator")
+        mock_loader.load_skill.assert_called_once_with("reddit_navigator")
 
     @patch('modules.reddit_fetcher.OpenAI')
     def test_optimize_search_query(self, mock_openai):
@@ -121,7 +121,7 @@ class TestCommentGenerator:
 
         assert generator is not None
         mock_get_loader.assert_called_once()
-        mock_loader.load_skill.assert_called_once_with("3_god_comment_generator")
+        mock_loader.load_skill.assert_called_once_with("god_comment_generator")
 
     @patch('modules.comment_generator.OpenAI')
     def test_generate_comments_success(self, mock_openai):
@@ -170,7 +170,7 @@ class TestImageGenerator:
 
         assert generator is not None
         mock_get_loader.assert_called_once()
-        mock_loader.load_skill.assert_called_once_with("4_visual_prompt_designer")
+        mock_loader.load_skill.assert_called_once_with("visual_prompt_designer")
 
     @patch('modules.image_generator.OpenAI')
     @patch('modules.image_generator.requests')

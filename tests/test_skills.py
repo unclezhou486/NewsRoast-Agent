@@ -122,7 +122,9 @@ class TestSkillLoader:
     def test_load_skill_success_returns_skill_data(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             skill_content = "## 核心功能\n这是核心功能描述\n\n## 输出规范\n这是输出规范\n"
-            Path(tmpdir, "test_skill.md").write_text(skill_content, encoding="utf-8")
+            skill_dir = Path(tmpdir, "test_skill")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
 
             loader = SkillLoader(skills_dir=tmpdir)
             sd = loader.load_skill("test_skill")
@@ -133,7 +135,9 @@ class TestSkillLoader:
 
     def test_load_skill_caching(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            p = Path(tmpdir, "cached_skill.md")
+            skill_dir = Path(tmpdir, "cached_skill")
+            skill_dir.mkdir()
+            p = skill_dir / "SKILL.md"
             p.write_text("## 测试\n内容", encoding="utf-8")
 
             loader = SkillLoader(skills_dir=tmpdir)
@@ -146,7 +150,9 @@ class TestSkillLoader:
 
     def test_clear_cache(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "s.md").write_text("## A\nB", encoding="utf-8")
+            skill_dir = Path(tmpdir, "s")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text("## A\nB", encoding="utf-8")
             loader = SkillLoader(skills_dir=tmpdir)
             loader.load_skill("s")
             assert "s" in loader.skills_cache
@@ -155,8 +161,10 @@ class TestSkillLoader:
 
     def test_get_all_skills(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "skill_a.md").write_text("## A\nC1", encoding="utf-8")
-            Path(tmpdir, "skill_b.md").write_text("## B\nC2", encoding="utf-8")
+            for name in ("skill_a", "skill_b"):
+                d = Path(tmpdir, name)
+                d.mkdir()
+                (d / "SKILL.md").write_text(f"## {name}\nC1", encoding="utf-8")
             loader = SkillLoader(skills_dir=tmpdir)
             skills = loader.get_all_skills()
             assert "skill_a" in skills
@@ -164,7 +172,9 @@ class TestSkillLoader:
 
     def test_get_skill_section(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "s.md").write_text("## 🔍 核心方法\n内容", encoding="utf-8")
+            skill_dir = Path(tmpdir, "s")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text("## 🔍 核心方法\n内容", encoding="utf-8")
             loader = SkillLoader(skills_dir=tmpdir)
             result = loader.get_skill_section("s", "核心方法")
             assert result == "内容"
@@ -213,7 +223,9 @@ class TestSkillLoader:
     # ------------------------------------------------------------------
     def test_empty_skill_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "empty_skill.md").write_text("", encoding="utf-8")
+            skill_dir = Path(tmpdir, "empty_skill")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text("", encoding="utf-8")
             loader = SkillLoader(skills_dir=tmpdir)
             sd = loader.load_skill("empty_skill")
             assert len(sd) == 0
@@ -250,10 +262,10 @@ class TestSkillLoader:
         """真实技能文件中的 emoji 章节可通过 find_section 访问"""
         loader = SkillLoader()
         skill_map = {
-            "1_perception_expert": "核心分析方法",
-            "2_reddit_navigator": "检索策略框架",
-            "3_god_comment_generator": "五种核心风格详解",
-            "4_visual_prompt_designer": "AI绘画提示词工程",
+            "perception_expert": "核心分析方法",
+            "reddit_navigator": "检索策略框架",
+            "god_comment_generator": "五种核心风格详解",
+            "visual_prompt_designer": "AI绘画提示词工程",
         }
         for skill_name, section_query in skill_map.items():
             try:
@@ -295,7 +307,9 @@ class TestSkillValidator:
         from skills.registry import SkillRegistry, SkillMeta
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "ok_skill.md").write_text(
+            skill_dir = Path(tmpdir, "ok_skill")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(
                 "## 必须章节\n有内容\n", encoding="utf-8"
             )
             loader = SkillLoader(skills_dir=tmpdir)
@@ -316,7 +330,9 @@ class TestSkillValidator:
         from skills.registry import SkillRegistry, SkillMeta
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "partial.md").write_text(
+            skill_dir = Path(tmpdir, "partial")
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(
                 "## 其他章节\n内容\n", encoding="utf-8"
             )
             loader = SkillLoader(skills_dir=tmpdir)

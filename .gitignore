@@ -75,8 +75,9 @@ all_code_1.md
 难点.md
 
 # =========================
-# 🧠 Claude Code 配置与缓存 (保留技能 Markdown，排除子目录)
+# 🧠 Claude Code 配置与缓存 (保留 skills 子目录，排除平铺 .md)
 # =========================
 .claude/*
 !.claude/skills/
-!.claude/skills/*.md
+!.claude/skills/*/
+!.claude/skills/*/SKILL.md

@@ -86,7 +86,7 @@ class ImageGenerator:
         # 加载技能文件
         self.visual_designer_skill = None
         try:
-            self.visual_designer_skill = get_skill_loader().load_skill("4_visual_prompt_designer")
+            self.visual_designer_skill = get_skill_loader().load_skill("visual_prompt_designer")
         except Exception as e:
             logger.warning(f"加载技能文件失败: {e}，将使用默认视觉设计框架")
 
