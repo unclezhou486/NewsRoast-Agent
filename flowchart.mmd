@@ -1,28 +1,31 @@
 graph TD
-    A[用户输入新闻URL] --> B[新闻分析模块]
-    B --> C[Reddit评论检索模块]
-    B --> D[评论生成模块]
+    A[用户输入新闻URL] --> B[1_perception_expert\n多模态感知层]
+    B --> C[2_reddit_navigator\nReddit检索层]
+    B --> D[3_god_comment_generator\n神评论生成层]
     C --> D
-    D --> E[图片生成模块]
-    E --> F[输出神评论和配图]
-    
-    subgraph 核心模块
-    B[新闻分析模块]
-    C[Reddit评论检索模块]
-    D[评论生成模块]
-    E[图片生成模块]
+    D --> E[4_visual_prompt_designer\n视觉梗图层]
+    E --> F[输出：神评论列表 + 4K梗图]
+
+    subgraph 核心技能链
+        B
+        C
+        D
+        E
     end
-    
+
     subgraph 技术栈
-    B1[OpenAI GPT-4o] --> B
-    C1[PRAW Reddit API] --> C
-    D1[OpenAI GPT-4o] --> D
-    E1[OpenAI DALL·E 3] --> E
+        B1[Qwen3.5-35B-A3B\n视觉大模型] --> B
+        B2[BeautifulSoup\n网页解析] --> B
+        C1[Tavily API\nsite:reddit.com] --> C
+        C2[HackerNews Algolia\n降级方案] --> C
+        D1[MiniMax-M2.5\n网感生成模型] --> D
+        E1[Qwen3-32B\n视觉提示设计] --> E
+        E2[Qwen-Image-2512\n异步图像生成] --> E
     end
-    
-    subgraph 数据流程
-    B -- 分析结果 --> D
-    C -- 参考评论 --> D
-    D -- 生成评论 --> E
-    E -- 配图 --> F
+
+    subgraph 数据流
+        B -- 槽点分析 + SEARCH_QUERY --> C
+        C -- 高赞参考评论 --> D
+        D -- 5种风格神评论 --> E
+        E -- 4K讽刺梗图URL --> F
     end

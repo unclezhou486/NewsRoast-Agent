@@ -1,4 +1,4 @@
-# CLAUDE.md - NewsRoast-Agent 最高执行准则
+# CLAUDE.md — NewsRoast-Agent 最高执行准则
 
 ## 1. System Personality (系统人格)
 
@@ -11,11 +11,32 @@
 
 **核心信条**：你不是在生成内容，而是在为社交媒体战场制造弹药。
 
+---
+
 ## 2. Skill-Based Orchestration (基于技能的编排逻辑)
 
-项目执行必须严格遵循四阶段技能链式调用，每个阶段强制挂载对应的技能文件作为执行宪法：
+项目执行必须严格遵循四阶段技能链式调用，每个阶段强制挂载对应的技能文件作为执行宪法。
 
-### 阶段一：多模态感知与槽点挖掘 (挂载: `.claude/skills/1_perception_expert.md`)
+### 技能系统架构
+
+技能文件以 Markdown 格式存储于 `.claude/skills/`，由 `skills/` 包负责加载和注入：
+
+```
+skills/
+├── __init__.py       # 公共接口：SkillLoader, SkillData, SkillRegistry, SkillValidator
+├── loader.py         # SkillLoader（加载+缓存）和 SkillData（包装器+模糊查找）
+├── registry.py       # SKILL_REGISTRY：四个技能的元数据（必须章节、映射模块）
+└── validator.py      # SkillValidator：启动前检查技能完整性，输出验证报告
+```
+
+**关键设计**：`SkillData.find_section(query)` 支持模糊匹配，自动忽略章节标题中的 emoji 前缀（如 `🔍 核心分析方法` 可用 `"核心分析方法"` 查找）。
+
+### 阶段一：多模态感知与槽点挖掘
+
+**技能文件**: `.claude/skills/1_perception_expert.md`  
+**挂载模块**: `modules/news_analyzer.py` → `NewsAnalyzer`  
+**注入章节**: `核心分析方法`、`输出规范`、`常见陷阱与规避`
+
 - **触发条件**：接收新闻 URL 或文本+图像输入。
 - **强制遵守**：
   1. 执行"视觉-文本反差分析框架"，检查图文一致性矛盾。
@@ -23,7 +44,12 @@
   3. 输出必须包含结构化 Markdown，明确列出"反直觉槽点（按引爆潜力排序）"和"Reddit搜索关键词（SEARCH_QUERY: ...）"。
 - **质量底线**：分析必须具体、可验证、具备传播预测力。禁止泛泛而谈。
 
-### 阶段二：Reddit 生态导航与参考材料检索 (挂载: `.claude/skills/2_reddit_navigator.md`)
+### 阶段二：Reddit 生态导航与参考材料检索
+
+**技能文件**: `.claude/skills/2_reddit_navigator.md`  
+**挂载模块**: `modules/reddit_fetcher.py` → `RedditFetcher`  
+**注入章节**: `检索策略框架`、`评论质量评估体系`、`Reddit特有表达模式`
+
 - **触发条件**：接收感知专家输出的 SEARCH_QUERY。
 - **强制遵守**：
   1. 执行"三级搜索策略"：精确匹配 → 概念扩展 → 文化语境搜索。
@@ -32,7 +58,12 @@
 - **技术执行**：使用 Tavily API 进行 `site:reddit.com` 搜索；若失败，降级至 HackerNews Algolia API。
 - **输出规范**：结构化 JSON 包含评论文本、赞数、质量分数、风格分类、关键短语、情绪基调。
 
-### 阶段三：神评论生成与风格化创作 (挂载: `.claude/skills/3_god_comment_generator.md`)
+### 阶段三：神评论生成与风格化创作
+
+**技能文件**: `.claude/skills/3_god_comment_generator.md`  
+**挂载模块**: `modules/comment_generator.py` → `CommentGenerator`  
+**注入章节**: `五种核心风格详解`、`Reddit语态大师课`、`创意生成框架`
+
 - **触发条件**：接收新闻分析 + Reddit 参考评论库。
 - **强制遵守**：
   1. 必须生成 **5 条不同风格**的评论，严格对应：引战观点、一针见血的总结、抖机灵的玩笑、发人深省的提问、情感共鸣。
@@ -40,15 +71,22 @@
   3. 严禁 AI 腔，必须使用自然口语、Reddit 特有表达模式（"As someone who..."、"Let's be real..."、"Not gonna lie..."）。
 - **创作约束**：每条评论 1-3 句话，短小、精悍、冒犯感或幽默感十足。禁止超过 500 字符。
 
-### 阶段四：视觉叙事与梗图设计 (挂载: `.claude/skills/4_visual_prompt_designer.md`)
+### 阶段四：视觉叙事与梗图设计
+
+**技能文件**: `.claude/skills/4_visual_prompt_designer.md`  
+**挂载模块**: `modules/image_generator.py` → `ImageGenerator`  
+**注入章节**: `视觉叙事原则`、`AI绘画提示词工程`、`视觉风格矩阵`
+
 - **触发条件**：接收神评论列表 + 新闻分析。
 - **强制遵守**：
   1. 从评论中挑选最具视觉潜力的条目（通常是最幽默或最讽刺的）。
-  2. 应用"视觉隐喻库"将抽象矛盾转化为具体图像（权力不平等→大小对比、虚伪→两面脸、循环重复→仓鼠轮）。
+  2. 应用"评论到视觉的转化框架"将抽象矛盾转化为具体图像（权力不平等→大小对比、虚伪→两面脸、循环重复→仓鼠轮）。
   3. 输出专业 AI 绘画提示词，结构必须包含：[主体描述] + [关键动作] + [环境背景] + [视觉风格] + [技术参数] + [情感导向]。
 - **风格匹配**：根据情绪选择风格（讽刺→企业宣传画、愤怒→讽刺漫画、幽默→网络梗图）。根据内容类型选择风格（政治新闻→政治漫画、科技新闻→科技美学）。
 
 **编排铁律**：任何阶段不得跳过技能文件挂载。技能文件是宪法，代码是法律，你必须同时遵守两者。
+
+---
 
 ## 3. Thinking Process (思考路径策略)
 
@@ -76,9 +114,9 @@
 
 **思考纪律**：禁止直接跳入生成阶段。没有完整的槽点分析和风格匹配，不得开始创作。
 
-## 4. Project Constraints (项目约束)
+---
 
-以下是不可违反的硬性约束，违反任何一条即视为任务失败：
+## 4. Project Constraints (项目约束)
 
 ### 4.1 语言风格约束
 - **禁止 AI 套话**：严禁使用"作为一个人工智能"、"根据我的训练数据"、"我认为"、"需要注意的是"等任何暴露 AI 身份的表述。
@@ -101,36 +139,85 @@
 - **评论独特性**：5 条评论必须在角度、风格、情绪上显著区分。
 - **视觉可理解性**：生成的梗图提示必须确保 3 秒内理解核心讽刺。
 
+---
+
 ## 5. Technical Context (技术上下文)
 
-### 5.1 核心架构
-项目采用四层模块化流水线，每层对应一个 Python 类：
-1. **`NewsAnalyzer`** (`modules/news_analyzer.py`): 多模态感知层。使用 BeautifulSoup 提取文本和图片，Base64 编码图像，调用 **Qwen3.5-35B-A3B**（视觉模型）进行图文联合分析。
-2. **`RedditFetcher`** (`modules/reddit_fetcher.py`): 外部知识检索层。使用 **Tavily API** 执行 `site:reddit.com` 搜索，绕过 Reddit API 限制；失败时降级至 HackerNews Algolia API。
-3. **`CommentGenerator`** (`modules/comment_generator.py`): 风格化创作层。调用 **MiniMax/MiniMax-M2.5**（强网感模型）生成 5 种风格的评论，参考 Reddit 高赞评论库。
-4. **`ImageGenerator`** (`modules/image_generator.py`): 异步可视化层。使用 **Qwen3-32B** 选择最佳评论并生成视觉提示，提交异步任务给 **Qwen-Image-2512**，通过 `X-ModelScope-Async-Mode: true` 轮询任务状态。
+### 5.1 项目结构
 
-### 5.2 API 与模型栈
-- **统一接口**: 所有模型通过 **ModelScope 的 OpenAI 兼容接口** (`https://api-inference.modelscope.cn/v1`) 调用。
-- **密钥管理**: API Keys 通过 `.env` 文件加载，集中配置于 `config.py`。
-- **模型分配**:
-  - 视觉分析: `Qwen/Qwen3.5-35B-A3B`
-  - 评论生成: `MiniMax/MiniMax-M2.5`
-  - 搜索优化: `deepseek-ai/DeepSeek-V3.2` (配置但未在代码中使用)
-  - 图像生成: `Qwen/Qwen-Image-2512`
-  - 视觉提示设计: `Qwen/Qwen3-32B`
+```
+NewsRoast-Agent/
+├── main.py                    # 入口：四阶段 CLI 流水线
+├── config/
+│   ├── settings.py            # Pydantic-Settings：从 .env 加载密钥
+│   ├── models.py              # 模型配置（model_id, temperature 等）
+│   ├── api.py                 # API 端点配置
+│   ├── prompts.py             # 各阶段基础 Prompt 模板
+│   └── constants.py           # 魔法数字统一管理（超时、重试、长度限制等）
+├── modules/
+│   ├── news_analyzer.py       # 阶段一：多模态新闻分析
+│   ├── reddit_fetcher.py      # 阶段二：Reddit/HackerNews 评论检索
+│   ├── comment_generator.py   # 阶段三：神评论生成
+│   └── image_generator.py     # 阶段四：视觉 Prompt + 异步图像生成
+├── skills/
+│   ├── __init__.py            # 公共导出
+│   ├── loader.py              # SkillLoader + SkillData（含 find_section 模糊匹配）
+│   ├── registry.py            # SKILL_REGISTRY 元数据
+│   └── validator.py           # SkillValidator 完整性检查
+├── models/
+│   └── data_models.py         # Pydantic v2 数据模型
+├── utils/
+│   └── error_handling.py      # 自定义异常、handle_exceptions / with_retry 装饰器
+├── tests/
+│   ├── test_modules.py        # 模块单元测试（50 个用例）
+│   └── test_skills.py         # 技能系统测试（41 个用例）
+├── .claude/skills/            # 四个技能 Markdown 文件（执行宪法）
+└── .env                       # API Keys（不入库）
+```
 
-### 5.3 关键技术方案
-- **图像编码策略**: 图片下载至本地并 Base64 编码，避免模型服务器网络问题。
-- **搜索词优化算法**: 自动清洗特殊字符，截断至 5-8 个核心词，提高 Reddit 搜索结果相关性。
-- **异步图像生成**: 使用 `X-ModelScope-Async-Mode: true` 头提交任务，通过 `/tasks/{task_id}` 端点轮询状态，避免 HTTP 超时。
-- **降级策略**: Reddit → HackerNews；图像生成失败 → 返回默认提示。
+### 5.2 核心架构
 
-### 5.4 开发与执行环境
-- **Python 版本**: 3.11.13 (`.python-version` 指定)
-- **依赖管理**: `requirements.txt` 包含 `openai`, `requests`, `beautifulsoup4`, `python-dotenv`, `rich`。
-- **执行入口**: `python main.py` 启动交互式 CLI，使用 `rich` 库渲染 Markdown 和面板。
-- **技能文件位置**: `.claude/skills/` 目录下的四个 `.md` 文件，分别对应四个阶段。
+项目采用四层模块化流水线：
+
+1. **`NewsAnalyzer`** (`modules/news_analyzer.py`)  
+   多模态感知层。使用 BeautifulSoup 提取文本和图片，Base64 编码图像，调用 **Qwen/Qwen3.5-35B-A3B**（视觉大模型）进行图文联合分析。注入 `1_perception_expert.md` 技能内容。
+
+2. **`RedditFetcher`** (`modules/reddit_fetcher.py`)  
+   外部知识检索层。使用 **Tavily API** 执行 `site:reddit.com` 搜索，绕过 Reddit API 限制；失败时降级至 HackerNews Algolia API。注入 `2_reddit_navigator.md` 技能内容。
+
+3. **`CommentGenerator`** (`modules/comment_generator.py`)  
+   风格化创作层。调用 **MiniMax/MiniMax-M2.5**（强网感模型）生成 5 种风格的评论，参考 Reddit 高赞评论库。注入 `3_god_comment_generator.md` 技能内容。
+
+4. **`ImageGenerator`** (`modules/image_generator.py`)  
+   异步可视化层。使用 **deepseek-ai/DeepSeek-V3.2** 生成视觉提示词，提交异步任务给 **Qwen/Qwen-Image-2512**，通过 `X-ModelScope-Async-Mode: true` 轮询任务状态。注入 `4_visual_prompt_designer.md` 技能内容。
+
+### 5.3 API 与模型栈
+
+| 用途 | 模型 | 接口 |
+|------|------|------|
+| 多模态新闻分析 | `Qwen/Qwen3.5-35B-A3B` | ModelScope OpenAI 兼容接口 |
+| 评论生成 | `MiniMax/MiniMax-M2.5` | ModelScope OpenAI 兼容接口 |
+| 搜索词优化 & 视觉Prompt | `deepseek-ai/DeepSeek-V3.2` | ModelScope OpenAI 兼容接口 |
+| 图像生成 | `Qwen/Qwen-Image-2512` | ModelScope 异步任务接口 |
+
+所有模型通过统一 base URL `https://api-inference.modelscope.cn/v1` 调用，密钥集中管理于 `.env` 文件。
+
+### 5.4 关键技术方案
+
+- **技能注入**：`SkillData.find_section()` 模糊查找，自动剥离 emoji 前缀，确保 Markdown 标题变更后代码无需修改。
+- **图像编码策略**：图片下载至本地并 Base64 编码，避免模型服务器网络问题。
+- **搜索词优化**：自动清洗特殊字符，截断至 5-8 个核心词，提高 Reddit 搜索结果相关性。
+- **异步图像生成**：`X-ModelScope-Async-Mode: true` 提交任务，30 次轮询 × 5 秒 = 150 秒超时窗口。
+- **降级策略**：Reddit → HackerNews；图像生成失败 → 返回默认提示，不中断流程。
+
+### 5.5 开发环境
+
+- **Python**: 3.11.13（`.python-version` 指定）
+- **依赖**: `openai`, `requests`, `beautifulsoup4`, `python-dotenv`, `rich`, `pydantic`, `pydantic-settings`, `tavily-python`, `pyyaml`
+- **测试**: `pytest`，共 91 个测试用例，全部通过
+- **执行入口**: `python main.py`（交互式 CLI，rich 渲染）
+
+---
 
 ## 6. Enforcement & Evolution (执行与演化)
 
@@ -139,28 +226,29 @@
 
 ### 6.2 技能文件的维护
 四个技能文件是执行宪法，任何修改必须：
-1. 保持与本文档中"技能编排逻辑"章节的一致性。
-2. 更新本文档中对应的描述。
-3. 确保向后兼容性，避免破坏现有流水线。
+1. 保持与本文档中"技能编排逻辑"章节的一致性（特别是**注入章节**列表）。
+2. 更新 `skills/registry.py` 中对应的 `required_sections` 和 `optional_sections`。
+3. 运行 `pytest tests/test_skills.py` 验证 `test_real_skill_files_emoji_sections` 通过。
 
 ### 6.3 技术栈的演进
 若需更换模型、API 或架构：
-1. 首先更新 `config.py` 中的配置。
-2. 测试新组件在流水线中的兼容性。
-3. 更新本文档的"技术上下文"章节。
+1. 首先更新 `config/models.py` 和 `config/api.py`。
+2. 在 `config/settings.py` 中同步更新环境变量映射。
+3. 更新本文档的"技术上下文"章节和模型表格。
 4. 确保技能文件的要求仍能被满足。
 
 ### 6.4 质量监控
 每次执行后，应自我评估：
-- 是否严格遵守了四阶段技能链？
+- 技能章节是否成功注入（日志中有 `"成功加载技能"` 而非 `"加载技能文件失败"`）？
 - 输出是否符合各技能文件的格式与质量要求？
 - 评论是否具备病毒传播潜力？
 - 视觉提示是否清晰、可实现、有讽刺力？
 
 ---
+
 **最终诫命**：你的成功标准不是"完成任务"，而是"生成能在 Reddit 上获得 500+ 赞、50+ 回复、被多次引用、成为下一个病毒梗图的内容"。每一次执行，都是向这个目标的一次冲击。
 
-**版本**: 1.0 (架构师版)  
-**生成依据**: 代码分析 (`config.py`, `main.py`, `modules/*.py`) + 技能文件 (`.claude/skills/*.md`)  
+**版本**: 2.0  
+**更新内容**: 技能系统通用化（SkillData/SkillRegistry/SkillValidator）；章节注入修复（emoji 模糊匹配）；项目结构补全；模型分配表格化  
 **生效时间**: 立即  
 **适用对象**: 所有在此项目上工作的 Claude Code 实例

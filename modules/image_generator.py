@@ -3,211 +3,240 @@
 实现: .claude/skills/4_visual_prompt_designer.md 中的视觉提示设计专家要求
 
 核心功能:
-1. 视觉潜力评估: 从神评论列表中挑选最具视觉潜力的条目（通常最幽默或最讽刺）
-2. 视觉隐喻转化: 应用视觉隐喻库将抽象矛盾转化为具体图像
-   - 权力不平等 → 大小对比
-   - 虚伪 → 两面脸
-   - 循环重复 → 仓鼠轮
-3. 专业AI绘画提示词工程: 生成结构完整的视觉Prompt
+1. 视觉潜力评估：从神评论中挑选最具视觉潜力的条目
+2. 视觉隐喻转化：将抽象矛盾映射到具体图像（权力不平等→大小对比、虚伪→两面脸）
+3. AI 绘画提示词工程：生成结构完整的视觉 Prompt
 
-视觉Prompt结构:
-- [主体描述] + [关键动作] + [环境背景] + [视觉风格] + [技术参数] + [情感导向]
-
-风格匹配策略:
-- 讽刺情绪 → 企业宣传画/政治漫画风格
-- 愤怒情绪 → 讽刺漫画/抗议海报风格
-- 幽默情绪 → 网络梗图/搞笑漫画风格
-- 政治新闻 → 政治漫画/社论插图风格
-- 科技新闻 → 科技美学/概念设计风格
+视觉 Prompt 结构:
+[主体描述] + [关键动作] + [环境背景] + [视觉风格] + [技术参数] + [情感导向]
 
 技术方案:
-- 异步轮询架构: 使用 `X-ModelScope-Async-Mode: true` 提交任务，通过 `/tasks/{task_id}` 轮询状态
-- 避免HTTP超时: 支持长达2分钟的生成任务，提升系统稳定性
-- 降级策略: 图像生成失败时返回默认提示，不中断流程
+- 异步轮询架构: 使用 X-ModelScope-Async-Mode: true 提交任务，通过 /tasks/{task_id} 轮询
+- 降级策略: 图像生成失败时返回 None，不中断主流程
 """
 
-import requests
+import logging
+import re
 import time
+import requests
+from typing import Optional
 from openai import OpenAI
-from config import IMAGE_API_KEY, IMAGE_BASE_URL, IMAGE_GEN_MODEL
+
+from config.settings import settings
+from config.models import get_model_config
+from config.constants import TimeoutConstants, ImageGenerationConstants
+
+from models.data_models import GeneratedComment, NewsAnalysis
+
+from utils.error_handling import handle_exceptions, log_execution_time
+
+from skills.loader import get_skill_loader
+from skills.prompt_builder import SkillPromptBuilder
+
+logger = logging.getLogger(__name__)
+
+# 备用提示词（当技能加载或 LLM 生成失败时使用）
+_FALLBACK_PROMPT = (
+    "A satirical scene about {keywords}, {style}, cinematic lighting, "
+    "ultra detailed, 4k resolution, vibrant colors, sharp focus, satirical commentary."
+)
+
+_STYLE_MAP = {
+    "引战观点":      "corporate advertisement style",
+    "一针见血的总结": "political cartoon style",
+    "抖机灵的玩笑":  "internet meme style",
+    "发人深省的提问": "editorial illustration style",
+    "情感共鸣":      "tech aesthetic style",
+}
+
+_REQUIRED_KEYWORDS = ["detailed", "4k", "cinematic", "satirical"]
+_VISUAL_DESCRIPTORS = [
+    "standing", "sitting", "holding", "wearing", "with", "in", "on",
+    "against", "facing", "looking", "surrounded",
+]
 
 
 class ImageGenerator:
     def __init__(self):
-        # 用于生成 prompt 的 LLM（仍然走 ModelScope OpenAI 兼容接口）
-        self.llm_client = OpenAI(
-            api_key=IMAGE_API_KEY,
-            base_url=IMAGE_BASE_URL
-        )
+        image_gen_config = get_model_config("image_gen")
+        llm_config = get_model_config("searcher")  # DeepSeek-V3.2 用于视觉提示词生成
 
-        # ModelScope 图像接口
-        self.base_url = IMAGE_BASE_URL
+        api_key = settings.modelscope_api_key
+        base_url = settings.modelscope_base_url
+
+        self.llm_client = OpenAI(api_key=api_key, base_url=base_url)
+        self.llm_model = llm_config.model_id
+
+        self.base_url = base_url
         self.headers = {
-            "Authorization": f"Bearer {IMAGE_API_KEY}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        self.image_gen_model = image_gen_config.model_id
 
-    def generate_image(self, comment, analysis):
-        """为评论生成匹配图片"""
+        self.timeout = TimeoutConstants.HTTP_REQUEST_TIMEOUT
+        self.max_retry_count = TimeoutConstants.MAX_RETRY_COUNT
+        self.polling_interval = TimeoutConstants.IMAGE_GENERATION_POLLING_INTERVAL
+        self.max_analysis_length = 500
+        self.min_prompt_length = 50
+
+        self.async_mode_header = ImageGenerationConstants.ASYNC_MODE_HEADER
+        self.async_mode_value = ImageGenerationConstants.ASYNC_MODE_VALUE
+
+        # 加载技能文件
+        self.visual_designer_skill = None
         try:
-            # 1️⃣ 生成绘画 Prompt
-            prompt = self._generate_image_prompt(comment, analysis)
-            print(f"[生成的画图Prompt]: {prompt}")
+            self.visual_designer_skill = get_skill_loader().load_skill("4_visual_prompt_designer")
+        except Exception as e:
+            logger.warning(f"加载技能文件失败: {e}，将使用默认视觉设计框架")
 
-            # 2️⃣ 提交生成任务
+    @handle_exceptions(default_return=None)
+    @log_execution_time
+    def generate_image(self, comment: GeneratedComment, analysis: NewsAnalysis) -> Optional[str]:
+        """为评论生成匹配图片，返回图片 URL 或 None。"""
+        prompt = self._generate_image_prompt(comment, analysis)
+        logger.info(f"生成的画图 Prompt: {prompt[:100]}...")
+
+        try:
             response = requests.post(
                 f"{self.base_url}/images/generations",
-                headers={**self.headers, "X-ModelScope-Async-Mode": "true"},
-                json={
-                    "model": IMAGE_GEN_MODEL,
-                    "prompt": prompt,
-                    # "n": 1  # 可选：生成多张图
-                }
+                headers={**self.headers, self.async_mode_header: self.async_mode_value},
+                json={"model": self.image_gen_model, "prompt": prompt},
+                timeout=self.timeout,
             )
             response.raise_for_status()
-            task_id = response.json()["task_id"]
 
-            # 3️⃣ 轮询任务状态
-            max_retry = 100
-            for i in range(max_retry):
+            task_id = response.json().get("task_id")
+            if not task_id:
+                logger.error("API 响应中缺少 task_id 字段")
+                return None
+
+            for i in range(self.max_retry_count):
                 result = requests.get(
                     f"{self.base_url}/tasks/{task_id}",
                     headers={**self.headers, "X-ModelScope-Task-Type": "image_generation"},
+                    timeout=self.timeout,
                 )
                 result.raise_for_status()
+
                 data = result.json()
+                task_status = data.get("task_status")
+                logger.debug(f"任务状态: {task_status} (第{i+1}次轮询)")
 
-                print(f"[任务状态]: {data['task_status']} (第{i+1}次)")
-
-                if data["task_status"] == "SUCCEED":
-                    # ✅ 返回图片 URL
-                    return data["output_images"][0]
-
-                elif data["task_status"] == "FAILED":
-                    print("[图片生成失败]")
+                if task_status == "SUCCEED":
+                    output_images = data.get("output_images", [])
+                    if output_images:
+                        logger.info("图片生成成功")
+                        return output_images[0]
+                    logger.warning("任务成功但未返回图片")
+                    return None
+                elif task_status == "FAILED":
+                    logger.error("图片生成任务失败")
                     return None
 
-                time.sleep(5)
+                time.sleep(self.polling_interval)
 
-            print("[超时] 图片生成任务未完成")
+            logger.error("图片生成任务超时")
             return None
 
-        except Exception as e:
-            print(f"[生成图片异常]: {e}")
+        except requests.RequestException as e:
+            logger.exception(f"API 请求失败: {e}")
             return None
-    def _generate_image_prompt(self, comment, analysis):
-        """根据评论生成专业的AI绘画提示词，遵循4_visual_prompt_designer.md中的结构"""
+
+    def _build_visual_prompt_request(self, comment: GeneratedComment, analysis: NewsAnalysis) -> str:
+        """使用 SkillPromptBuilder 构建视觉提示词生成请求。"""
+        builder = SkillPromptBuilder(
+            skill=self.visual_designer_skill,
+            role=(
+                "你是 AI 绘画的视觉叙事专家，擅长将文字梗转化为生动、讽刺、传播力强的视觉图像。"
+                "你的目标是设计能在 3 秒内传达核心矛盾、引发情感共鸣的梗图视觉概念。"
+            ),
+            sections=[
+                ("视觉叙事原则",       "## 视觉叙事原则\n{content}"),
+                ("AI绘画提示词工程",   "## AI绘画提示词工程\n{content}"),
+                ("视觉风格矩阵",       "## 视觉风格矩阵\n{content}"),
+                ("评论到视觉的转化框架", "## 转化框架\n{content}"),
+            ],
+            task_block=(
+                "## 输入材料\n"
+                "### 新闻背景\n{news_text}\n\n"
+                "### 神评论\n{comment_text}\n\n"
+                "### 评论风格分析\n"
+                "- 风格: {style}\n"
+                "- 目标受众: {target_audience}\n"
+                "- 情绪基调: {emotion_tone}\n\n"
+                "## 输出要求\n"
+                "1. 输出纯英文的完整 AI 绘画提示词（自然流畅的一段话）\n"
+                "2. 必须包含: detailed, 4k, satirical, cinematic lighting\n"
+                "3. 禁止使用编号标记组件\n"
+                "4. 不要添加任何解释，只输出提示词本身\n"
+            ),
+            fallback=(
+                "Generate a satirical AI image prompt for this comment: {comment_text}\n\n"
+                "News context: {news_text}\n\n"
+                "Requirements: include detailed, 4k, satirical, cinematic lighting. "
+                "Output only the prompt, no explanations."
+            ),
+            title="视觉叙事与梗图设计专家任务",
+        )
+        return builder.build(
+            news_text=analysis.text_content[: self.max_analysis_length],
+            comment_text=comment.text,
+            style=comment.style,
+            target_audience=comment.target_audience,
+            emotion_tone=comment.emotion_tone,
+        )
+
+    @handle_exceptions(default_return="")
+    @log_execution_time
+    def _generate_image_prompt(self, comment: GeneratedComment, analysis: NewsAnalysis) -> str:
+        """根据评论生成专业的 AI 绘画提示词。"""
         try:
-            prompt = (
-                f"# 视觉提示设计专家任务\n\n"
-                f"## 新闻背景\n{analysis[:500]}\n\n"
-                f"## 神评论列表\n{comment}\n\n"
-                f"## 你的任务\n"
-                f"1. 从以上评论中挑选最具视觉潜力的一条（通常是最幽默或最讽刺的）\n"
-                f"2. 基于该评论设计一个讽刺意味强烈的视觉概念\n"
-                f"3. 生成专业的AI绘画提示词，必须包含以下6个组件：\n\n"
-                f"   ### 组件结构\n"
-                f"   1. **[主体描述]**：具体的人物/物体，特征夸张\n"
-                f"   2. **[关键动作]**：象征性动作，体现核心矛盾\n"
-                f"   3. **[环境背景]**：强化主题的场景设置\n"
-                f"   4. **[视觉风格]**：企业宣传画/讽刺漫画/网络梗图等风格\n"
-                f"   5. **[技术参数]**：构图、灯光、色彩、细节等技术要求\n"
-                f"   6. **[情感导向]**：希望观众感受到的情绪\n\n"
-                f"   ### 视觉隐喻参考\n"
-                f"   - 权力不平等 → 大小对比、俯视/仰视角度\n"
-                f"   - 虚伪/双标 → 两面脸、镜像反差、面具掉落\n"
-                f"   - 循环重复 → 莫比乌斯环、仓鼠轮\n"
-                f"   - 技术失控 → 机器人表情、代码溢出\n\n"
-                f"## 输出要求\n"
-                f"1. 输出纯英文的完整AI绘画提示词\n"
-                f"2. 提示词必须自然流畅，不要用编号标记组件\n"
-                f"3. 必须包含：detailed, 4k, satirical, cinematic lighting\n"
-                f"4. 确保提示词能在Qwen-Image-2512等AI绘画模型中良好工作\n"
-                f"5. 不要添加任何解释，只输出提示词本身\n\n"
-                f"## 示例格式\n"
-                f"\"A tired-looking consumer with three arms, each holding a different version of the same smartphone, standing in a never-ending queue that spirals into infinity. Corporate advertisement style mixed with surrealism. Cinematic lighting, vibrant but slightly off-putting colors, ultra-detailed. Satirical commentary on constant product updates and consumer fatigue.\""
-            )
+            request_prompt = self._build_visual_prompt_request(comment, analysis)
 
             response = self.llm_client.chat.completions.create(
-                model="Qwen/Qwen3-32B",
-                messages=[{"role": "user", "content": prompt}],
+                model=self.llm_model,
+                messages=[{"role": "user", "content": request_prompt}],
                 temperature=0.7,
                 stream=False,
-                extra_body={
-                    "enable_thinking": False
-                }
+                timeout=self.timeout,
             )
 
-            generated_prompt = response.choices[0].message.content.strip()
+            generated = None
+            if response and response.choices and response.choices[0].message.content:
+                generated = response.choices[0].message.content.strip()
 
-            # 验证生成的提示词质量
-            if self._validate_image_prompt(generated_prompt):
-                return generated_prompt
+            if not generated:
+                logger.warning("LLM 未返回有效 Prompt，使用备用策略")
+                return self._get_fallback_prompt(comment)
+
+            if self._validate_prompt(generated):
+                return generated
             else:
-                print("[警告] 生成的提示词质量较低，使用备用提示词")
-                return self._get_fallback_prompt(comment, analysis)
+                logger.warning("生成的提示词质量较低，使用备用提示词")
+                return self._get_fallback_prompt(comment)
 
         except Exception as e:
-            print(f"[Prompt生成失败]: {e}")
-            return self._get_fallback_prompt(comment, analysis)
+            logger.exception(f"Prompt 生成失败: {e}")
+            return self._get_fallback_prompt(comment)
 
-    def _validate_image_prompt(self, prompt):
-        """验证生成的提示词质量"""
-        # 基本验证：长度、关键词检查
-        if len(prompt) < 50:
+    def _validate_prompt(self, prompt: str) -> bool:
+        """验证提示词是否满足质量要求。"""
+        if len(prompt) < self.min_prompt_length:
             return False
+        missing = [kw for kw in _REQUIRED_KEYWORDS if kw not in prompt.lower()]
+        if missing:
+            logger.debug(f"Prompt 缺少关键词: {missing}")
+            return False
+        if not any(d in prompt.lower() for d in _VISUAL_DESCRIPTORS):
+            logger.debug("Prompt 缺少视觉描述元素")
+            return False
+        return True
 
-        # 检查是否包含必要关键词
-        required_keywords = ["detailed", "4k", "cinematic"]
-        for keyword in required_keywords:
-            if keyword not in prompt.lower():
-                return False
-
-        # 检查是否包含视觉描述元素
-        visual_descriptors = ["standing", "sitting", "holding", "wearing", "with", "in", "on", "against"]
-        has_visual_description = any(desc in prompt.lower() for desc in visual_descriptors)
-
-        return has_visual_description
-
-    def _get_fallback_prompt(self, comment, analysis):
-        """生成备用提示词"""
-        # 提取评论中的关键词用于备用提示词
-        import re
-        keywords = re.findall(r'\b\w+\b', comment[:100])
+    def _get_fallback_prompt(self, comment: GeneratedComment) -> str:
+        """生成备用提示词。"""
+        logger.warning("使用备用提示词生成策略")
+        keywords = re.findall(r"\b\w+\b", comment.text[:100])
         main_keywords = " ".join(keywords[:3]) if keywords else "politics and money"
-
-        return (
-            f"A satirical scene about {main_keywords}, "
-            f"cinematic lighting, ultra detailed, 4k resolution, "
-            f"corporate advertisement style mixed with political cartoon"
-        )
-    # def _generate_image_prompt(self, comment, analysis):
-    #     """根据评论生成 AI 绘画 Prompt"""
-    #     try:
-    #         prompt = (
-    #             f"【新闻背景】\n{analysis[:500]}\n\n"
-    #             f"以下是AI针对上述新闻生成的几条神评论：\n"
-    #             f"{comment}\n\n"
-    #             "【你的任务】\n"
-    #             "1. 请从以上评论中挑选出最幽默的一条。\n"
-    #             "2. 结合新闻背景，设计一个讽刺意味强烈的画面。\n"
-    #             "3. 输出纯英文 AI 绘画 Prompt。\n"
-    #             "4. 必须包含: detailed, 4k, satirical, cinematic lighting。\n\n"
-    #             "【输出要求】\n"
-    #             "只输出英文 Prompt，不要解释。"
-    #         )
-    #
-    #         response = self.llm_client.chat.completions.create(
-    #             model='Qwen/Qwen3-32B',
-    #             messages=[{"role": "user", "content": prompt}],
-    #             temperature=0.7
-    #         )
-    #
-    #         return response.choices[0].message.content.strip()
-    #
-    #     except Exception as e:
-            # print(f"[Prompt生成失败]: {e}")
-            # return (
-            #     "A satirical digital art scene about politics and money, "
-            #     "cinematic lighting, ultra detailed, 4k"
-            # )
+        style = _STYLE_MAP.get(str(comment.style.value), "corporate advertisement style")
+        return _FALLBACK_PROMPT.format(keywords=main_keywords, style=style)
