@@ -24,6 +24,7 @@ from modules.news_analyzer import NewsAnalyzer
 from modules.reddit_fetcher import RedditFetcher
 from modules.comment_generator import CommentGenerator
 from modules.image_generator import ImageGenerator
+from modules.pipeline_router import PipelineRouter
 
 # 数据模型
 from models.data_models import NewsAnalysis, GeneratedComment, CommentStyle
@@ -204,31 +205,51 @@ def main() -> int:
             border_style="red"
         ))
         return ErrorCodes.CONTENT_PARSE_ERROR
-    
-    # return
+
+    # 路由决策：基于 Stage 1 分析结果，动态决定是否执行 Stage 2 / Stage 4
+    console.print("\n[bold yellow]>> 路由决策[/bold yellow] [dim](agent 自主选择后续 skill)[/dim]")
+    try:
+        router = PipelineRouter()
+        routing = router.decide(analysis_text)
+        console.print(Panel(
+            f"[bold]决策理由[/bold]: {routing.reasoning}\n"
+            f"  Reddit 检索 (Stage 2): {'[green]执行[/green]' if routing.run_reddit_search else '[yellow]跳过[/yellow]'}\n"
+            f"  图像生成 (Stage 4): {'[green]执行[/green]' if routing.run_image_generation else '[yellow]跳过[/yellow]'}",
+            title="[bold blue]🧭 流水线路由[/bold blue]",
+            border_style="blue"
+        ))
+        logger.info(f"路由决策: reddit={routing.run_reddit_search}, image={routing.run_image_generation}, reason={routing.reasoning}")
+    except Exception as e:
+        logger.warning(f"路由决策异常，降级为全执行: {e}")
+        from modules.pipeline_router import RoutingDecision
+        routing = RoutingDecision.run_all(reason=f"异常降级: {type(e).__name__}")
 
     # 3. Reddit生态导航阶段（挂载: reddit_navigator/SKILL.md）
     console.print("\n[bold yellow]>> 2. Reddit生态导航与参考材料检索[/bold yellow] [dim](挂载: reddit_navigator/SKILL.md)[/dim]")
-    try:
-        fetcher = RedditFetcher()
-        reference_comments = fetcher.get_reference_comments(analysis_text)
-
-        if reference_comments:
-            console.print(f"  [green]✅ 成功检索到 {len(reference_comments)} 条参考评论[/green]")
-            for i, comment in enumerate(reference_comments[:3]):
-                text = comment.get('text', '')
-                score = comment.get('score', '')
-                preview = text[:80] + "..." if len(text) > 80 else text
-                console.print(f"    [dim]{i+1}.[/dim] [cyan]{preview}[/cyan] [dim]({score})[/dim]")
-            logger.info(f"检索到 {len(reference_comments)} 条参考评论")
-        else:
-            console.print("  [yellow]⚠️ 未发现相关参考，将由 AI 纯原创[/yellow]")
-            logger.info("未检索到参考评论，使用纯原创模式")
-
-    except Exception as e:
-        logger.exception(f"Reddit检索阶段失败: {e}")
-        console.print("  [yellow]⚠️ Reddit检索失败，降级为纯原创模式[/yellow]")
+    if not routing.run_reddit_search:
+        console.print("  [yellow]⏭ 已跳过（路由决策：话题不适合 Reddit 检索）[/yellow]")
         reference_comments = []
+    else:
+        try:
+            fetcher = RedditFetcher()
+            reference_comments = fetcher.get_reference_comments(analysis_text)
+
+            if reference_comments:
+                console.print(f"  [green]✅ 成功检索到 {len(reference_comments)} 条参考评论[/green]")
+                for i, comment in enumerate(reference_comments[:3]):
+                    text = comment.get('text', '')
+                    score = comment.get('score', '')
+                    preview = text[:80] + "..." if len(text) > 80 else text
+                    console.print(f"    [dim]{i+1}.[/dim] [cyan]{preview}[/cyan] [dim]({score})[/dim]")
+                logger.info(f"检索到 {len(reference_comments)} 条参考评论")
+            else:
+                console.print("  [yellow]⚠️ 未发现相关参考，将由 AI 纯原创[/yellow]")
+                logger.info("未检索到参考评论，使用纯原创模式")
+
+        except Exception as e:
+            logger.exception(f"Reddit检索阶段失败: {e}")
+            console.print("  [yellow]⚠️ Reddit检索失败，降级为纯原创模式[/yellow]")
+            reference_comments = []
     # 4. 神评论生成阶段（挂载: god_comment_generator/SKILL.md）
     console.print("\n[bold yellow]>> 3. 神评论生成与风格化创作[/bold yellow] [dim](挂载: god_comment_generator/SKILL.md)[/dim]")
     try:
@@ -253,30 +274,34 @@ def main() -> int:
     # return
     # 5. 视觉叙事与梗图设计阶段（挂载: visual_prompt_designer/SKILL.md）
     console.print("\n[bold yellow]>> 4. 视觉叙事与梗图设计[/bold yellow] [dim](挂载: visual_prompt_designer/SKILL.md)[/dim]")
-    try:
-        image_gen = ImageGenerator()
-        console.print("  [dim]正在挑选最佳槽点并转化为视觉Prompt...[/dim]")
-
-        # 创建临时数据对象（TODO: 未来需要真正的结构化解析）
-        simple_comment = create_simple_generated_comment(comments_text)
-        simple_analysis = create_simple_news_analysis(news_url, analysis_text)
-
-        image_url = image_gen.generate_image(simple_comment, simple_analysis)
-
-        if image_url:
-            console.print(f"\n[bold green]✅ 图片生成成功！[/bold green]")
-            console.print("[bold cyan]🔗 梗图预览链接 (复制到浏览器查看):[/bold cyan]")
-            console.print(f"\n{image_url}\n")
-            console.print("[dim]提示: 如果链接无法点击，请完整复制后粘贴到浏览器地址栏。[/dim]")
-            logger.info("图片生成成功")
-        else:
-            console.print("\n[yellow]⚠️ 图片生成失败或超时[/yellow]")
-            logger.warning("图片生成失败")
-
-    except Exception as e:
-        logger.exception(f"图片生成阶段失败: {e}")
-        console.print("\n[yellow]⚠️ 图片生成失败，跳过此阶段[/yellow]")
+    if not routing.run_image_generation:
+        console.print("  [yellow]⏭ 已跳过（路由决策：新闻缺乏视觉化潜力）[/yellow]")
         image_url = None
+    else:
+        try:
+            image_gen = ImageGenerator()
+            console.print("  [dim]正在挑选最佳槽点并转化为视觉Prompt...[/dim]")
+
+            # 创建临时数据对象（TODO: 未来需要真正的结构化解析）
+            simple_comment = create_simple_generated_comment(comments_text)
+            simple_analysis = create_simple_news_analysis(news_url, analysis_text)
+
+            image_url = image_gen.generate_image(simple_comment, simple_analysis)
+
+            if image_url:
+                console.print(f"\n[bold green]✅ 图片生成成功！[/bold green]")
+                console.print("[bold cyan]🔗 梗图预览链接 (复制到浏览器查看):[/bold cyan]")
+                console.print(f"\n{image_url}\n")
+                console.print("[dim]提示: 如果链接无法点击，请完整复制后粘贴到浏览器地址栏。[/dim]")
+                logger.info("图片生成成功")
+            else:
+                console.print("\n[yellow]⚠️ 图片生成失败或超时[/yellow]")
+                logger.warning("图片生成失败")
+
+        except Exception as e:
+            logger.exception(f"图片生成阶段失败: {e}")
+            console.print("\n[yellow]⚠️ 图片生成失败，跳过此阶段[/yellow]")
+            image_url = None
 
     # 6. 结束语
     console.print("\n" + "=" * 50)
