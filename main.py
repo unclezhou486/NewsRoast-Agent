@@ -56,11 +56,11 @@ def validate_skill_files() -> list:
     }
 
     missing_files = []
-    for filename, stage_name in skill_files.items():
-        filepath = os.path.join(PathConstants.SKILLS_DIR, filename)
+    for skill_name, stage_name in skill_files.items():
+        filepath = os.path.join(PathConstants.SKILLS_DIR, skill_name, "SKILL.md")
         if not os.path.exists(filepath):
-            missing_files.append((filename, stage_name))
-            logger.warning(f"技能文件缺失: {filename} ({stage_name})")
+            missing_files.append((skill_name, stage_name))
+            logger.warning(f"技能文件缺失: {skill_name}/SKILL.md ({stage_name})")
 
     if not missing_files:
         logger.info("所有技能文件验证通过")
@@ -184,8 +184,8 @@ def main() -> int:
     console.print(f"✅ [green]正在处理:[/green] [link={news_url}]{news_url[:80]}...[/link]\n")
     logger.info(f"开始处理新闻URL: {news_url}")
 
-    # 2. 多模态新闻分析阶段（挂载: 1_perception_expert.md）
-    console.print("[bold yellow]>> 1. 多模态新闻分析与槽点挖掘[/bold yellow] [dim](挂载: 1_perception_expert.md)[/dim]")
+    # 2. 多模态新闻分析阶段（挂载: perception_expert/SKILL.md）
+    console.print("[bold yellow]>> 1. 多模态新闻分析与槽点挖掘[/bold yellow] [dim](挂载: perception_expert/SKILL.md)[/dim]")
     try:
         analyzer = NewsAnalyzer()
         analysis_text = analyzer.process_news(news_url)
@@ -207,8 +207,8 @@ def main() -> int:
     
     # return
 
-    # 3. Reddit生态导航阶段（挂载: 2_reddit_navigator.md）
-    console.print("\n[bold yellow]>> 2. Reddit生态导航与参考材料检索[/bold yellow] [dim](挂载: 2_reddit_navigator.md)[/dim]")
+    # 3. Reddit生态导航阶段（挂载: reddit_navigator/SKILL.md）
+    console.print("\n[bold yellow]>> 2. Reddit生态导航与参考材料检索[/bold yellow] [dim](挂载: reddit_navigator/SKILL.md)[/dim]")
     try:
         fetcher = RedditFetcher()
         reference_comments = fetcher.get_reference_comments(analysis_text)
@@ -229,8 +229,8 @@ def main() -> int:
         logger.exception(f"Reddit检索阶段失败: {e}")
         console.print("  [yellow]⚠️ Reddit检索失败，降级为纯原创模式[/yellow]")
         reference_comments = []
-    # 4. 神评论生成阶段（挂载: 3_god_comment_generator.md）
-    console.print("\n[bold yellow]>> 3. 神评论生成与风格化创作[/bold yellow] [dim](挂载: 3_god_comment_generator.md)[/dim]")
+    # 4. 神评论生成阶段（挂载: god_comment_generator/SKILL.md）
+    console.print("\n[bold yellow]>> 3. 神评论生成与风格化创作[/bold yellow] [dim](挂载: god_comment_generator/SKILL.md)[/dim]")
     try:
         generator = CommentGenerator()
         comments_text = generator.generate_comments(analysis_text, reference_comments)
@@ -251,8 +251,8 @@ def main() -> int:
         return ErrorCodes.COMMENT_GENERATION_FAILED
     
     # return
-    # 5. 视觉叙事与梗图设计阶段（挂载: 4_visual_prompt_designer.md）
-    console.print("\n[bold yellow]>> 4. 视觉叙事与梗图设计[/bold yellow] [dim](挂载: 4_visual_prompt_designer.md)[/dim]")
+    # 5. 视觉叙事与梗图设计阶段（挂载: visual_prompt_designer/SKILL.md）
+    console.print("\n[bold yellow]>> 4. 视觉叙事与梗图设计[/bold yellow] [dim](挂载: visual_prompt_designer/SKILL.md)[/dim]")
     try:
         image_gen = ImageGenerator()
         console.print("  [dim]正在挑选最佳槽点并转化为视觉Prompt...[/dim]")

@@ -78,11 +78,11 @@ class PathConstants:
     # 技能文件目录
     SKILLS_DIR = ".claude/skills"
 
-    # 技能文件名
-    PERCEPTION_EXPERT_SKILL = "1_perception_expert.md"
-    REDDIT_NAVIGATOR_SKILL = "2_reddit_navigator.md"
-    GOD_COMMENT_GENERATOR_SKILL = "3_god_comment_generator.md"
-    VISUAL_PROMPT_DESIGNER_SKILL = "4_visual_prompt_designer.md"
+    # 技能文件名（子目录名，对应 {name}/SKILL.md）
+    PERCEPTION_EXPERT_SKILL = "perception_expert"
+    REDDIT_NAVIGATOR_SKILL = "reddit_navigator"
+    GOD_COMMENT_GENERATOR_SKILL = "god_comment_generator"
+    VISUAL_PROMPT_DESIGNER_SKILL = "visual_prompt_designer"
 
     # 缓存目录
     CACHE_DIR = ".cache"
